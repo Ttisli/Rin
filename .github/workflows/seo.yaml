@@ -20,18 +20,35 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 21
+          cache: 'bun'  # 缓存npm依赖
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: 1.2.22  # 指定Bun版本，与之前日志匹配
 
-      - name: Set up Puppeteer
+      - name: Cache Puppeteer browsers
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ runner.os }}-puppeteer-${{ hashFiles('Rin/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-puppeteer-
+
+      - name: Install system dependencies for Puppeteer
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev
-          npx puppeteer browsers install chrome
+          sudo apt-get install -y libgbm-dev libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+            libxrandr2 libgbm1 libasound2  # 添加完整的浏览器依赖
+
+      - name: Install specific Chrome version for Puppeteer
+        run: |
+          # 安装日志中要求的Chrome版本
+          npx puppeteer browsers install chrome@127.0.6533.88
 
       - name: Run script
-        env: # Or as an environment variable
+        env:
           S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
           S3_REGION: ${{ vars.S3_REGION }}
@@ -46,4 +63,6 @@ jobs:
         run: |
           cd Rin/
           bun install --frozen-lockfile
+          # 信任依赖的postinstall脚本（解决Blocked postinstalls警告）
+          bun pm untrusted
           bun scripts/render.ts
