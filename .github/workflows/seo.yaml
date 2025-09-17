@@ -36,8 +36,21 @@ jobs:
           cd Rin/
           # 信任 postinstall 脚本，允许 Puppeteer 下载浏览器
           bun install --frozen-lockfile --trust-pm
-          # 验证 Puppeteer 浏览器是否正确安装
+          
+      - name: Install and verify Chrome browser for Puppeteer
+        env:
+          PUPPETEER_CACHE_DIR: /home/runner/.cache/puppeteer
+        run: |
+          cd Rin/
+          # 强制安装 Chrome 浏览器
+          npx puppeteer browsers install chrome
+          # 验证浏览器安装
+          echo "=== Puppeteer 浏览器列表 ==="
           npx puppeteer browsers list
+          echo "=== 缓存目录内容 ==="
+          ls -la /home/runner/.cache/puppeteer/ || echo "缓存目录不存在"
+          echo "=== Chrome 可执行文件检查 ==="
+          find /home/runner/.cache/puppeteer -name "chrome" -type f 2>/dev/null || echo "未找到 Chrome 可执行文件"
 
       - name: Run script
         env: # Or as an environment variable
@@ -52,6 +65,11 @@ jobs:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_CACHE_FOLDER: ${{ vars.S3_CACHE_FOLDER }}
           S3_FORCE_PATH_STYLE: ${{ vars.S3_FORCE_PATH_STYLE }}
+          PUPPETEER_CACHE_DIR: /home/runner/.cache/puppeteer
         run: |
           cd Rin/
+          # 运行前再次验证浏览器
+          echo "=== 运行前浏览器检查 ==="
+          npx puppeteer browsers list
+          echo "=== 开始运行 SEO 脚本 ==="
           bun scripts/render.ts
