@@ -24,11 +24,20 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
 
-      - name: Set up Puppeteer
+      - name: Install system dependencies for Puppeteer
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgbm-dev
-          npx puppeteer browsers install chrome
+          sudo apt-get install -y libgbm-dev libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
+            libxrandr2 libgbm1 libasound2t64
+
+      - name: Install dependencies and trust Puppeteer postinstall
+        run: |
+          cd Rin/
+          # 信任 postinstall 脚本，允许 Puppeteer 下载浏览器
+          bun install --frozen-lockfile --trust-pm
+          # 验证 Puppeteer 浏览器是否正确安装
+          npx puppeteer browsers list
 
       - name: Run script
         env: # Or as an environment variable
@@ -45,5 +54,4 @@ jobs:
           S3_FORCE_PATH_STYLE: ${{ vars.S3_FORCE_PATH_STYLE }}
         run: |
           cd Rin/
-          bun install --frozen-lockfile
           bun scripts/render.ts
