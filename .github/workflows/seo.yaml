@@ -2,62 +2,62 @@ name: SEO Workflow
 
 on:
   schedule:
-    - cron: "0 8 * * *"
-  workflow_dispatch:
-  
+    - cron: "0 8 * * *"  # 每日8点自动执行
+  workflow_dispatch:      # 支持手动触发
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-latest  # 使用最新版Ubuntu（当前为24.04）
     steps:
       - name: Clone Rin repository
         uses: actions/checkout@v4
         with:
-          path: Rin
+          path: Rin  # 代码克隆到Rin目录
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 21
+          node-version: 21  # 匹配项目Node版本需求，移除不支持的bun缓存配置
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: 1.2.22  # 指定Bun版本
+          bun-version: 1.2.22  # 固定Bun版本，确保环境一致性
 
-      # 添加专门的Bun依赖缓存步骤
       - name: Cache Bun dependencies
         uses: actions/cache@v3
         with:
           path: |
-            ~/.bun/install/cache
-            Rin/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('Rin/bun.lockb') }}
+            ~/.bun/install/cache  # Bun安装缓存目录
+            Rin/node_modules      # 项目依赖目录
+          key: ${{ runner.os }}-bun-${{ hashFiles('Rin/bun.lockb') }}  # 按系统+依赖锁文件哈希缓存
           restore-keys: |
-            ${{ runner.os }}-bun-
+            ${{ runner.os }}-bun-  # 缓存命中失败时，复用同系统旧缓存
 
       - name: Cache Puppeteer browsers
         uses: actions/cache@v3
         with:
-          path: ~/.cache/puppeteer
+          path: ~/.cache/puppeteer  # Puppeteer浏览器缓存目录
           key: ${{ runner.os }}-puppeteer-${{ hashFiles('Rin/bun.lockb') }}
           restore-keys: |
             ${{ runner.os }}-puppeteer-
 
       - name: Install system dependencies for Puppeteer
         run: |
-          sudo apt-get update
+          sudo apt-get update  # 更新软件源列表
+          # 关键修复：用libasound2t64替换libasound2，适配Ubuntu 24.04
           sudo apt-get install -y libgbm-dev libnss3 libatk1.0-0 libatk-bridge2.0-0 \
             libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
-            libxrandr2 libgbm1 libasound2
+            libxrandr2 libgbm1 libasound2t64  # 修复后的音频依赖包
 
       - name: Install specific Chrome version for Puppeteer
         run: |
+          # 安装Puppeteer兼容的Chrome版本（避免版本不匹配导致启动失败）
           npx puppeteer browsers install chrome@127.0.6533.88
 
-      - name: Run script
+      - name: Run SEO render script
         env:
+          # 从GitHub Secrets/Vars中注入敏感信息和配置（避免硬编码）
           S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
           S3_REGION: ${{ vars.S3_REGION }}
@@ -70,7 +70,7 @@ jobs:
           S3_CACHE_FOLDER: ${{ vars.S3_CACHE_FOLDER }}
           S3_FORCE_PATH_STYLE: ${{ vars.S3_FORCE_PATH_STYLE }}
         run: |
-          cd Rin/
-          bun install --frozen-lockfile
-          bun pm untrusted
-          bun scripts/render.ts
+          cd Rin/  # 进入项目目录
+          bun install --frozen-lockfile  # 按锁文件安装依赖，确保版本一致
+          bun pm untrusted  # 信任依赖的postinstall脚本（解决Bun的安全警告）
+          bun scripts/render.ts  # 执行SEO渲染脚本
