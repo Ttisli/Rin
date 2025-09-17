@@ -2,82 +2,42 @@ name: SEO Workflow
 
 on:
   schedule:
-    - cron: "0 8 * * *"  # 每日8点自动执行
-  workflow_dispatch:      # 支持手动触发
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+  
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Clone Rin repository
         uses: actions/checkout@v4
         with:
-          path: Rin  # 代码克隆到Rin目录
+          path: Rin
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 21  # 匹配项目Node版本需求
+          node-version: 21
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: 1.2.22  # 固定Bun版本，确保环境一致性
 
-      - name: Cache Bun dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.bun/install/cache
-            Rin/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('Rin/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Cache Puppeteer browsers
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/puppeteer
-          key: ${{ runner.os }}-puppeteer-${{ hashFiles('Rin/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-puppeteer-
-
-      - name: Install system dependencies for Puppeteer
+      - name: Set up Puppeteer
         run: |
           sudo apt-get update
-          # 适配Ubuntu 24.04，用libasound2t64替换libasound2
-          sudo apt-get install -y libgbm-dev libnss3 libatk1.0-0 libatk-bridge2.0-0 \
-            libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
-            libxrandr2 libgbm1 libasound2t64
+          sudo apt-get install -y libgbm-dev
+          npx puppeteer browsers install chrome
 
-      - name: Install dependencies and trust Puppeteer postinstall
-        run: |
-          cd Rin/
-          # 安装依赖时允许Puppeteer等核心包的Postinstall脚本（关键修复）
-          bun install --frozen-lockfile --trust-pm  # --trust-pm 自动信任依赖的生命周期脚本
-          # 验证Puppeteer浏览器是否正确安装
-          npx puppeteer browsers list  # 输出已安装的浏览器版本，确认无缺失
-
-      - name: Validate target URL (SEO_BASE_URL)
-        run: |
-          cd Rin/
-          # 校验SEO_BASE_URL是否包含完整协议（http/https），避免无效URL
-          if ! echo "${{ vars.SEO_BASE_URL }}" | grep -E '^https?://'; then
-            echo "Error: SEO_BASE_URL must start with http:// or https://"
-            echo "Current value: ${{ vars.SEO_BASE_URL }}"
-            exit 1  # URL格式错误时终止工作流，提前暴露问题
-          fi
-          echo "Valid SEO_BASE_URL: ${{ vars.SEO_BASE_URL }}"  # 打印有效URL，便于日志排查
-
-      - name: Run SEO render script
-        env:
-          # 确保所有URL相关变量包含完整协议（如SEO_BASE_URL=https://blog.trissky.top）
+      - name: Run script
+        env: # Or as an environment variable
           S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
           S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
           S3_REGION: ${{ vars.S3_REGION }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
-          SEO_BASE_URL: ${{ vars.SEO_BASE_URL }}  # 需配置为完整URL（含http/https）
+          SEO_BASE_URL: ${{ vars.SEO_BASE_URL }}
           SEO_CONTAINS_KEY: ${{ vars.SEO_CONTAINS_KEY }}
           S3_ACCESS_HOST: ${{ vars.S3_ACCESS_HOST }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
@@ -85,6 +45,5 @@ jobs:
           S3_FORCE_PATH_STYLE: ${{ vars.S3_FORCE_PATH_STYLE }}
         run: |
           cd Rin/
-          # 执行渲染脚本前，再次确认URL变量（可选，用于日志排查）
-          echo "Rendering pages from: $SEO_BASE_URL"
+          bun install --frozen-lockfile
           bun scripts/render.ts
